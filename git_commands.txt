@@ -1,1 +1,15 @@
 git show dc26399b:scripts/convert_hls.sh
+git push origin --force-with-lease origin reactType
+git pull origin reactType
+git pull --no-rebase origin qa === git merge origin/qa (현재 로컬 브랜치에 리모트 origin/qa 받아오기)
+git rebase -i <commithash>^
+git branch
+git branch -r
+git reset --hard HEAD~1
+git reset --hard <commit-hash>
+git branch -d <branch-name>
+git checkout -b dev origin/dev
+git push origin qa:dev --force-with-lease
+git reflog show reactType
+git checkout -b recover-reactType abc1234
+git log --oneline --since="yesterday" --until="today"
