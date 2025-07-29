@@ -1,0 +1,274 @@
+# Docker & Docker Compose 종합 가이드
+
+## 1. Docker 네트워크 생성 및 관리
+
+### 네트워크 생성
+```bash
+# 기본 네트워크 생성
+docker network create my_network
+
+# 브리지 네트워크 생성 (커스텀 설정)
+docker network create --driver bridge --subnet=172.18.0.0/16 my_bridge_network
+
+# 오버레이 네트워크 (스웜 모드용)
+docker network create --driver overlay my_overlay_network
+```
+
+### 네트워크 관리
+```bash
+# 네트워크 목록 확인
+docker network ls
+
+# 네트워크 상세 정보 확인
+docker network inspect my_network
+
+# 네트워크 삭제
+docker network rm my_network
+
+# 사용하지 않는 네트워크 정리
+docker network prune
+```
+
+## 2. Docker Compose로 이미지 생성 및 실행
+
+### 기본 명령어
+```bash
+# 이미지 빌드
+docker compose build
+
+# 캐시 무시하고 빌드
+docker compose build --no-cache
+
+# 특정 서비스만 빌드
+docker compose build [서비스명]
+
+# 컨테이너 실행 (백그라운드)
+docker compose up -d
+
+# 컨테이너 실행 (포그라운드)
+docker compose up
+
+# 컨테이너 중지
+docker compose down
+
+# 컨테이너 상태 확인
+docker compose ps
+```
+
+### 서비스별 관리
+```bash
+# 특정 서비스만 실행
+docker compose up -d [서비스명]
+
+# 특정 서비스만 중지
+docker compose stop [서비스명]
+
+# 특정 서비스만 재시작
+docker compose restart [서비스명]
+
+# 특정 서비스만 재빌드
+docker compose build [서비스명]
+```
+
+## 3. 컨테이너 접근 및 관리
+
+### 컨테이너 접근
+```bash
+# 컨테이너 내부 접속
+docker compose exec [서비스명] bash
+
+# 특정 사용자로 접속
+docker compose exec -u root [서비스명] bash
+
+# 컨테이너에서 명령어 실행
+docker compose exec [서비스명] [명령어]
+
+# 예시
+docker compose exec django python manage.py migrate
+docker compose exec mysql mysql -u root -p
+docker compose exec redis redis-cli
+```
+
+### 로그 관리
+```bash
+# 모든 서비스 로그 확인
+docker compose logs
+
+# 실시간 로그 확인
+docker compose logs -f
+
+# 특정 서비스 로그 확인
+docker compose logs [서비스명]
+
+# 로그 라인 수 제한
+docker compose logs --tail=100
+
+# 특정 시간 이후 로그
+docker compose logs --since="2024-01-01T00:00:00"
+```
+
+## 4. 컨테이너 및 이미지 관리
+
+### 컨테이너 관리
+```bash
+# 실행 중인 컨테이너 확인
+docker ps
+
+# 모든 컨테이너 확인 (중지된 것 포함)
+docker ps -a
+
+# 컨테이너 강제 중지
+docker stop [컨테이너ID/이름]
+
+# 컨테이너 강제 삭제
+docker rm -f [컨테이너ID/이름]
+
+# 모든 컨테이너 중지
+docker stop $(docker ps -q)
+
+# 모든 컨테이너 삭제
+docker rm $(docker ps -aq)
+```
+
+### 이미지 관리
+```bash
+# 이미지 목록 확인
+docker images
+
+# 이미지 삭제
+docker rmi [이미지ID/이름]
+
+# 사용하지 않는 이미지 정리
+docker image prune
+
+# 모든 이미지 삭제
+docker rmi $(docker images -q)
+```
+
+### 볼륨 관리
+```bash
+# 볼륨 목록 확인
+docker volume ls
+
+# 볼륨 상세 정보 확인
+docker volume inspect [볼륨명]
+
+# 볼륨 삭제
+docker volume rm [볼륨명]
+
+# 사용하지 않는 볼륨 정리
+docker volume prune
+```
+
+## 5. 네트워크 접근 및 관리
+
+### 네트워크 내 컨테이너 접근
+```bash
+# 네트워크에 연결된 컨테이너 확인
+docker network inspect [네트워크명]
+
+# 컨테이너를 네트워크에 연결
+docker network connect [네트워크명] [컨테이너명]
+
+# 컨테이너를 네트워크에서 분리
+docker network disconnect [네트워크명] [컨테이너명]
+```
+
+### 네트워크 진단
+```bash
+# 네트워크 내 컨테이너 간 통신 테스트
+docker compose exec [서비스명] ping [다른서비스명]
+
+# 네트워크 설정 확인
+docker compose exec [서비스명] ip addr
+
+# DNS 확인
+docker compose exec [서비스명] nslookup [서비스명]
+```
+
+## 6. 오류 핸들링 명령어
+
+### 일반적인 오류 해결
+```bash
+# 컨테이너 충돌 해결
+docker compose down --remove-orphans
+docker compose up -d
+
+# 포트 충돌 해결
+netstat -tulpn | grep [포트번호]
+lsof -i :[포트번호]
+
+# 볼륨 마운트 오류 해결
+docker volume ls
+docker volume rm [볼륨명]
+docker compose up -d
+
+# 네트워크 오류 해결
+docker network prune
+docker compose down
+docker compose up -d
+```
+
+### 디버깅 명령어
+```bash
+# 컨테이너 상세 정보 확인
+docker inspect [컨테이너명]
+
+# 컨테이너 리소스 사용량 확인
+docker stats
+
+# 컨테이너 프로세스 확인
+docker top [컨테이너명]
+
+# 컨테이너 파일시스템 확인
+docker diff [컨테이너명]
+```
+
+### 시스템 정리
+```bash
+# 사용하지 않는 리소스 정리
+docker system prune
+
+# 모든 리소스 강제 정리
+docker system prune -a --volumes
+
+# Docker 시스템 정보 확인
+docker system df
+```
+
+## 7. 자주 사용하는 조합 명령어
+
+```bash
+# 전체 재시작
+docker compose down && docker compose up -d
+
+# 로그 확인 후 재시작
+docker compose logs --tail=50 && docker compose restart
+
+# 빌드 후 실행
+docker compose build --no-cache && docker compose up -d
+
+# 특정 서비스만 재시작
+docker compose restart [서비스명] && docker compose logs -f [서비스명]
+
+# 백업 후 재시작
+docker compose exec [DB서비스명] [백업명령어] && docker compose restart
+```
+
+## 8. 프로덕션 환경 명령어
+
+```bash
+# 프로덕션 설정으로 실행
+docker compose -f docker-compose.prod.yml up -d
+
+# 스케일링
+docker compose up -d --scale [서비스명]=3
+
+# 헬스체크
+docker compose ps | grep -v "Up"
+
+# 롤링 업데이트
+docker compose pull && docker compose up -d
+```
+
+이제 귀여운 고양이를 살려주세요! 😸

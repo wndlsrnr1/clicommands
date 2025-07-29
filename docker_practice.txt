@@ -1,0 +1,452 @@
+# 목적별 Docker, Docker Compose, Docker Network 실습 가이드
+
+## 🎯 목적 1: 웹 애플리케이션 배포하기
+
+### 실습 목표
+- Nginx + Django + MySQL + Redis 환경을 Docker Compose로 구축
+
+### 단계별 실습
+```bash
+# 1. 프로젝트 디렉토리 생성
+mkdir web-app && cd web-app
+
+# 2. Docker 네트워크 생성
+docker network create web-network
+
+# 3. docker-compose.yml 생성
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: web_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - web-network
+    depends_on:
+      - django
+
+  django:
+    image: python:3.10-slim
+    container_name: web_django
+    volumes:
+      - ./app:/app
+    working_dir: /app
+    command: python -m http.server 8000
+    networks:
+      - web-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: web_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: webdb
+    networks:
+      - web-network
+
+  redis:
+    image: redis:alpine
+    container_name: web_redis
+    networks:
+      - web-network
+
+networks:
+  web-network:
+    external: true
+EOF
+
+# 4. nginx.conf 생성
+cat > nginx.conf << 'EOF'
+events { worker_connections 1024; }
+http {
+    upstream django {
+        server django:8000;
+    }
+    server {
+        listen 80;
+        location / {
+            proxy_pass http://django;
+        }
+    }
+}
+EOF
+
+# 5. 테스트 앱 생성
+mkdir app
+echo "<h1>Hello Docker!</h1>" > app/index.html
+
+# 6. Docker Compose로 실행
+docker compose up -d
+
+# 7. 상태 확인
+docker compose ps
+
+# 8. 네트워크 확인
+docker network inspect web-network
+
+# 9. 웹 접속 테스트
+curl http://localhost
+
+# 10. 정리
+docker compose down
+docker network rm web-network
+```
+
+## �� 목적 2: 마이크로서비스 아키텍처 구축하기
+
+### 실습 목표
+- API 서비스 + 웹 서비스 + 데이터베이스 분리
+
+### 단계별 실습
+```bash
+# 1. 프로젝트 디렉토리 생성
+mkdir microservices && cd microservices
+
+# 2. 마이크로서비스용 네트워크 생성
+docker network create api-network
+docker network create web-network
+docker network create db-network
+
+# 3. docker-compose.yml 생성
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+services:
+  api:
+    image: nginx:alpine
+    container_name: api_service
+    ports:
+      - "8001:80"
+    networks:
+      - api-network
+      - db-network
+
+  web:
+    image: nginx:alpine
+    container_name: web_service
+    ports:
+      - "8002:80"
+    networks:
+      - web-network
+      - api-network
+
+  database:
+    image: mysql:8.0
+    container_name: microservice_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: microdb
+    networks:
+      - db-network
+
+networks:
+  api-network:
+    external: true
+  web-network:
+    external: true
+  db-network:
+    external: true
+EOF
+
+# 4. 서비스 실행
+docker compose up -d
+
+# 5. 네트워크 간 통신 테스트
+docker exec api_service ping database
+docker exec web_service ping api_service
+
+# 6. 네트워크 정보 확인
+docker network inspect api-network
+docker network inspect web-network
+docker network inspect db-network
+
+# 7. 서비스별 접속 테스트
+curl http://localhost:8001
+curl http://localhost:8002
+
+# 8. 정리
+docker compose down
+docker network rm api-network web-network db-network
+```
+
+## 🎯 목적 3: 로드 밸런서 구축하기
+
+### 실습 목표
+- Nginx 로드 밸런서로 여러 웹 서버 분산 처리
+
+### 단계별 실습
+```bash
+# 1. 프로젝트 디렉토리 생성
+mkdir load-balancer && cd load-balancer
+
+# 2. 로드 밸런서용 네트워크 생성
+docker network create lb-network
+
+# 3. docker-compose.yml 생성
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+services:
+  nginx-lb:
+    image: nginx:alpine
+    container_name: load_balancer
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-lb.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - lb-network
+
+  web1:
+    image: nginx:alpine
+    container_name: web_server_1
+    volumes:
+      - ./web1.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - lb-network
+
+  web2:
+    image: nginx:alpine
+    container_name: web_server_2
+    volumes:
+      - ./web2.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - lb-network
+
+  web3:
+    image: nginx:alpine
+    container_name: web_server_3
+    volumes:
+      - ./web3.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - lb-network
+
+networks:
+  lb-network:
+    external: true
+EOF
+
+# 4. nginx 로드 밸런서 설정
+cat > nginx-lb.conf << 'EOF'
+events { worker_connections 1024; }
+http {
+    upstream backend {
+        server web1:80;
+        server web2:80;
+        server web3:80;
+    }
+    server {
+        listen 80;
+        location / {
+            proxy_pass http://backend;
+        }
+    }
+}
+EOF
+
+# 5. 웹 서버별 HTML 생성
+echo "<h1>Web Server 1</h1>" > web1.html
+echo "<h1>Web Server 2</h1>" > web2.html
+echo "<h1>Web Server 3</h1>" > web3.html
+
+# 6. 서비스 실행
+docker compose up -d
+
+# 7. 로드 밸런싱 테스트
+for i in {1..10}; do
+  curl http://localhost
+  echo "--- Request $i ---"
+done
+
+# 8. 네트워크 내 통신 확인
+docker exec load_balancer ping web1
+docker exec load_balancer ping web2
+docker exec load_balancer ping web3
+
+# 9. 정리
+docker compose down
+docker network rm lb-network
+```
+
+## �� 목적 4: 개발/프로덕션 환경 분리하기
+
+### 실습 목표
+- 개발환경과 프로덕션환경을 Docker Compose로 분리
+
+### 단계별 실습
+```bash
+# 1. 프로젝트 디렉토리 생성
+mkdir env-separation && cd env-separation
+
+# 2. 개발환경용 네트워크 생성
+docker network create dev-network
+
+# 3. 프로덕션환경용 네트워크 생성
+docker network create prod-network
+
+# 4. 개발환경 docker-compose.yml
+cat > docker-compose.dev.yml << 'EOF'
+version: '3.8'
+services:
+  app:
+    image: nginx:alpine
+    container_name: dev_app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./dev.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - dev-network
+    environment:
+      - NODE_ENV=development
+
+  db:
+    image: mysql:8.0
+    container_name: dev_db
+    environment:
+      MYSQL_ROOT_PASSWORD: dev123
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    external: true
+EOF
+
+# 5. 프로덕션환경 docker-compose.yml
+cat > docker-compose.prod.yml << 'EOF'
+version: '3.8'
+services:
+  app:
+    image: nginx:alpine
+    container_name: prod_app
+    ports:
+      - "80:80"
+    volumes:
+      - ./prod.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - prod-network
+    environment:
+      - NODE_ENV=production
+
+  db:
+    image: mysql:8.0
+    container_name: prod_db
+    environment:
+      MYSQL_ROOT_PASSWORD: prod123
+    networks:
+      - prod-network
+
+networks:
+  prod-network:
+    external: true
+EOF
+
+# 6. 환경별 HTML 생성
+echo "<h1>Development Environment</h1>" > dev.html
+echo "<h1>Production Environment</h1>" > prod.html
+
+# 7. 개발환경 실행
+docker compose -f docker-compose.dev.yml up -d
+
+# 8. 개발환경 테스트
+curl http://localhost:8080
+
+# 9. 개발환경 정리
+docker compose -f docker-compose.dev.yml down
+
+# 10. 프로덕션환경 실행
+docker compose -f docker-compose.prod.yml up -d
+
+# 11. 프로덕션환경 테스트
+curl http://localhost
+
+# 12. 프로덕션환경 정리
+docker compose -f docker-compose.prod.yml down
+
+# 13. 네트워크 정리
+docker network rm dev-network prod-network
+```
+
+## 🎯 목적 5: 모니터링 시스템 구축하기
+
+### 실습 목표
+- Prometheus + Grafana 모니터링 시스템 구축
+
+### 단계별 실습
+```bash
+# 1. 프로젝트 디렉토리 생성
+mkdir monitoring && cd monitoring
+
+# 2. 모니터링용 네트워크 생성
+docker network create monitoring-network
+
+# 3. docker-compose.yml 생성
+cat > docker-compose.yml << 'EOF'
+version: '3.8'
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - monitoring-network
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - monitoring-network
+
+  app:
+    image: nginx:alpine
+    container_name: monitored_app
+    ports:
+      - "8080:80"
+    networks:
+      - monitoring-network
+
+networks:
+  monitoring-network:
+    external: true
+EOF
+
+# 4. Prometheus 설정
+cat > prometheus.yml << 'EOF'
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+EOF
+
+# 5. 서비스 실행
+docker compose up -d
+
+# 6. 모니터링 접속 테스트
+curl http://localhost:9090
+curl http://localhost:3000
+
+# 7. 네트워크 내 통신 확인
+docker exec prometheus ping grafana
+docker exec grafana ping prometheus
+
+# 8. 정리
+docker compose down
+docker network rm monitoring-network
+```
+
+이제 각 목적별로 실제 Docker, Docker Compose, Docker Network 명령어를 실행해보면서 실무에서 사용할 수 있는 스킬을 익힐 수 있습니다! 🐳
+
+고양이는 안전합니다! ��
